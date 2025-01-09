@@ -1,7 +1,7 @@
-# Active Directory-Modul laden
+# Load Active Directory Module
 Import-Module ActiveDirectory
 
-# GUI erstellen
+# Create GUI
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -10,7 +10,7 @@ $form.Text = "Group Membership Manager"
 $form.Size = New-Object System.Drawing.Size(800, 600)
 $form.StartPosition = "CenterScreen"
 
-# Eingabefeld für Gruppensuche
+# Group search input field
 $lblSearchGroup = New-Object System.Windows.Forms.Label
 $lblSearchGroup.Text = "Search Group:"
 $lblSearchGroup.Location = New-Object System.Drawing.Point(20, 20)
@@ -28,7 +28,7 @@ $btnSearchGroup.Location = New-Object System.Drawing.Point(440, 18)
 $btnSearchGroup.Size = New-Object System.Drawing.Size(100, 25)
 $form.Controls.Add($btnSearchGroup)
 
-# Dropdown für Gruppenliste
+# Group list dropdown
 $lblGroupList = New-Object System.Windows.Forms.Label
 $lblGroupList.Text = "Select Group:"
 $lblGroupList.Location = New-Object System.Drawing.Point(20, 60)
@@ -41,7 +41,7 @@ $comboGroupList.Size = New-Object System.Drawing.Size(300, 20)
 $comboGroupList.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
 $form.Controls.Add($comboGroupList)
 
-# Eingabefeld für Benutzer suchen
+# User search input field
 $lblSearchUsers = New-Object System.Windows.Forms.Label
 $lblSearchUsers.Text = "Search Users:"
 $lblSearchUsers.Location = New-Object System.Drawing.Point(20, 100)
@@ -59,7 +59,7 @@ $btnSearchUsers.Location = New-Object System.Drawing.Point(440, 98)
 $btnSearchUsers.Size = New-Object System.Drawing.Size(100, 25)
 $form.Controls.Add($btnSearchUsers)
 
-# Dropdown für Benutzerliste
+# User list dropdown
 $lblUserList = New-Object System.Windows.Forms.Label
 $lblUserList.Text = "Select Users:"
 $lblUserList.Location = New-Object System.Drawing.Point(20, 140)
@@ -72,7 +72,7 @@ $comboUserList.Size = New-Object System.Drawing.Size(300, 20)
 $comboUserList.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
 $form.Controls.Add($comboUserList)
 
-# Kalender mit Uhrzeit für Enddatum
+# DateTime picker for end date & time
 $lblEndDate = New-Object System.Windows.Forms.Label
 $lblEndDate.Text = "End Date & Time:"
 $lblEndDate.Location = New-Object System.Drawing.Point(20, 180)
@@ -86,7 +86,7 @@ $pickerEndDate.Location = New-Object System.Drawing.Point(120, 180)
 $pickerEndDate.Size = New-Object System.Drawing.Size(200, 20)
 $form.Controls.Add($pickerEndDate)
 
-# Buttons für Aktionen
+# Action buttons
 $btnProcess = New-Object System.Windows.Forms.Button
 $btnProcess.Text = "Add User Temporarily"
 $btnProcess.Location = New-Object System.Drawing.Point(120, 220)
@@ -99,7 +99,7 @@ $btnClose.Location = New-Object System.Drawing.Point(500, 220)
 $btnClose.Size = New-Object System.Drawing.Size(100, 30)
 $form.Controls.Add($btnClose)
 
-# Event: Gruppen suchen
+# Event: Group search
 $btnSearchGroup.Add_Click({
     try {
         $searchTerm = $txtSearchGroup.Text
@@ -117,7 +117,7 @@ $btnSearchGroup.Add_Click({
     }
 })
 
-# Event: Benutzer suchen
+# Event: User search
 $btnSearchUsers.Add_Click({
     try {
         $searchTerm = $txtSearchUsers.Text
@@ -125,7 +125,7 @@ $btnSearchUsers.Add_Click({
             $users = Get-ADUser -Filter "SamAccountName -like '*$searchTerm*'" -Properties DistinguishedName -ErrorAction Stop
             $comboUserList.Items.Clear()
             foreach ($user in $users) {
-                # Prüfen ob der Benutzer bereits in der Gruppe ist
+                # Check if the user is already a member of the group
                 if ($comboGroupList.SelectedItem) {
                     $group = Get-ADGroup $comboGroupList.SelectedItem
                     $groupMembers = Get-ADGroupMember -Identity $group
@@ -144,7 +144,7 @@ $btnSearchUsers.Add_Click({
     }
 })
 
-# Event: Benutzer temporär zur Gruppe hinzufügen
+# Event: Add user temporarily to the group
 $btnProcess.Add_Click({
     try {
         $groupName = $comboGroupList.SelectedItem
@@ -161,7 +161,7 @@ $btnProcess.Add_Click({
             return
         }
 
-        # Prüfen ob der Benutzer bereits in der Gruppe ist
+        # Check if the user is already in the group
         $group = Get-ADGroup $groupName
         $groupMembers = Get-ADGroupMember -Identity $group
         if ($groupMembers.SamAccountName -contains $userName) {
@@ -169,40 +169,40 @@ $btnProcess.Add_Click({
             return
         }
 
-        # Benutzer zur Gruppe hinzufügen
+        # Add user to the group
         Add-ADGroupMember -Identity $groupName -Members $userName -Confirm:$false
 
-        # Task Name generieren
+        # Generate task name
         $taskName = "Remove_$userName`_from_$groupName`_$(Get-Date -Format 'yyyyMMddHHmmss')"
 
-        # PowerShell-Skript für die Entfernung erstellen
+        # Create PowerShell script to remove the user
         $scriptContent = @"
 try {
     Import-Module ActiveDirectory
-    # Benutzer aus der Gruppe entfernen
+    # Remove user from the group
     Remove-ADGroupMember -Identity '$groupName' -Members '$userName' -Confirm:`$false
     
-    # Warte kurz um sicherzustellen, dass die Gruppenentfernung abgeschlossen ist
+    # Wait briefly to ensure group removal is completed
     Start-Sleep -Seconds 2
     
-    # Task löschen
+    # Delete the task
     schtasks /delete /tn "$taskName" /f
 } catch {
-    # Fehler in Log schreiben
+    # Write error to log
     `$errorMessage = "Error during scheduled removal: `$_"
     `$errorMessage | Out-File -FilePath "`$env:TEMP\GroupRemovalError.log" -Append
 }
 "@
-        
-        # Temporäres Skript erstellen
+
+        # Create temporary script
         $scriptPath = Join-Path $env:TEMP "Remove_$userName`_from_$groupName.ps1"
         $scriptContent | Out-File -FilePath $scriptPath -Force
 
-        # Erstelle einen geplanten Task für die Entfernung
+        # Create scheduled task for removal
         $action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -NoProfile -File `"$scriptPath`""
         $trigger = New-ScheduledTaskTrigger -Once -At $endDate
         
-        # Task mit höheren Privilegien erstellen
+        # Create task with higher privileges
         $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
         $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
@@ -210,8 +210,8 @@ try {
 
         $message = "User $userName has been added to group $groupName and will be removed on $endDate"
         [System.Windows.Forms.MessageBox]::Show($message, "Success", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-        
-        # Benutzer aus der ComboBox entfernen
+
+        # Remove user from the ComboBox
         $comboUserList.Items.Remove($userName)
         $comboUserList.Text = ""
 
@@ -220,10 +220,10 @@ try {
     }
 })
 
-# Event: Schließen
+# Event: Close
 $btnClose.Add_Click({
     $form.Close()
 })
 
-# GUI anzeigen
+# Display GUI
 [void]$form.ShowDialog()
